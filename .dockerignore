@@ -1,5 +1,35 @@
+# Node modules (akan diinstall di container)
 node_modules
-.dockerignore
-Dockerfile
+npm-debug.log
+yarn-error.log
+
+# Git folder
 .git
+.gitignore
+
+# Environment files (jangan masuk ke image)
+.env
+.env.*.local
+
+# Logs
+logs
+*.log
+*.log.*
+
+# Editor / OS files
+.DS_Store
+Thumbs.db
+.vscode
+.idea
+
+# Build cache / output (akan dibuild di container)
+.build
 .next
+.cache
+
+# Docker files (tidak perlu masuk ke image)
+Dockerfile
+docker-compose.yml
+
+# SQLite database (jika mau persist, jangan di-ignore)
+# data/data.db

@@ -1,23 +1,23 @@
-# Gunakan Node.js 20
+# Gunakan Node.js LTS
 FROM node:20-alpine
- 
-# Set workdir di dalam container
+
+# Set working directory
 WORKDIR /app
- 
-# Salin file dependency
-COPY package.json package-lock.json* ./
- 
-# Install dependency
+
+# Copy package.json & lockfile
+COPY package.json package-lock.json ./
+
+# Install dependencies
 RUN npm install
- 
-# Salin seluruh project ke container
+
+# Copy seluruh project
 COPY . .
- 
-# Build aplikasi Next.js
+
+# Build Strapi
 RUN npm run build
- 
-# Expose port 3000
-EXPOSE 4100
- 
-# Jalankan aplikasi dalam mode production
-CMD ["npm", "start"]
+
+# Expose port Strapi default
+EXPOSE 1337
+
+# Jalankan Strapi
+CMD ["npm", "run", "start"]
