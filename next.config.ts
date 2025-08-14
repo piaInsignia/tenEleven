@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
       "images.unsplash.com",
       "png.pngtree.com",
       "encrypted-tbn0.gstatic.com",
+      "localhost",
     ],
   },
   /* config options here */

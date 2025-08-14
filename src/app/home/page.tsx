@@ -5,9 +5,122 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ScheduleSession from "../component/ScheduleSession";
+import { useEffect, useState } from "react";
+
+type ThumbnailFormat = {
+  url?: string;
+};
+type Thumbnail = {
+  id: number;
+  name?: string;
+  url?: string;
+  formats?: {
+    thumbnail?: ThumbnailFormat;
+    small?: ThumbnailFormat;
+    [k: string]: ThumbnailFormat | undefined;
+  };
+};
+
+type FileObj = {
+  id: number;
+  name: string;
+  url: string;
+  mime: string;
+};
+
+type Article = {
+  id: number;
+  documentId: string;
+  title: string;
+  slug?: string;
+  content?: any;
+  type?: string; // "news" | "whitepapers" etc
+  createdAt?: string;
+  updatedAt?: string;
+  publishedAt?: string;
+  thumbnail?: Thumbnail | null;
+  file?: FileObj | null;
+};
 
 export default function HomePage() {
   const navigate = useRouter();
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    async function fetchArticles() {
+      setLoading(true);
+      setError(null);
+      try {
+        const base = process.env.NEXT_PUBLIC_API_URL ?? "";
+        const res = await fetch(`${base}/api/articles?populate=*`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        const data = Array.isArray(json.data) ? json.data : [];
+        // Map to our Article shape if Strapi returns nested attributes structure,
+        // but in your sample response attributes are top-level so handle both cases:
+        const mapped = data.map((d: any) => {
+          // If Strapi returns { id, attributes: { ... } } try to unwrap
+          const baseObj = d.attributes ? { id: d.id, ...d.attributes } : d;
+          return {
+            id: d.id ?? baseObj.id,
+            documentId: baseObj.documentId ?? baseObj.id,
+            title: baseObj.title,
+            slug: baseObj.slug,
+            content: baseObj.content,
+            type: baseObj.type,
+            createdAt: baseObj.createdAt,
+            updatedAt: baseObj.updatedAt,
+            publishedAt: baseObj.publishedAt,
+            thumbnail: baseObj.thumbnail ?? null,
+            file: baseObj.file ?? null,
+          } as Article;
+        });
+        if (mounted) setArticles(mapped);
+      } catch (err: any) {
+        console.error("Failed to fetch articles", err);
+        if (mounted) setError("Gagal memuat artikel");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+    fetchArticles();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const buildImgUrl = (thumb?: Thumbnail | null) => {
+    if (!thumb) return "/assets/dumi.jpg";
+    // prefer small, then thumbnail, then root url
+    const candidate =
+      thumb.formats?.small?.url ??
+      thumb.formats?.thumbnail?.url ??
+      thumb.url ??
+      undefined;
+    if (!candidate) return "/assets/dumi.jpg";
+    if (candidate.startsWith("http")) return candidate;
+    const base = process.env.NEXT_PUBLIC_API_URL ?? "";
+    return `${base}${candidate}`;
+  };
+
+  const buildFileUrl = (file?: FileObj | null) => {
+    if (!file?.url) return null;
+    if (file.url.startsWith("http")) return file.url;
+    const base = process.env.NEXT_PUBLIC_API_URL ?? "";
+    return `${base}${file.url}`;
+  };
+
+  const formatDate = (iso?: string) => {
+    if (!iso) return "";
+    try {
+      return new Date(iso).toLocaleDateString("en-GB"); // dd/mm/yyyy
+    } catch {
+      return iso;
+    }
+  };
 
   return (
     <div className="relative min-h-screen bg-white pt-23 font-inter">
@@ -44,6 +157,7 @@ export default function HomePage() {
           className="object-contain object-center"
         />
       </div>
+
       {/* home section 2 */}
       <div className="relative w-full py-5 sm:py-[20px] sm:mt-20">
         <div className="flex flex-col justify-center items-center gap-3 sm:gap-8">
@@ -192,6 +306,7 @@ export default function HomePage() {
           </Link>
         </div>
       </div>
+
       {/* section 4 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-10 px-5 sm:px-20">
         <div className="text-[24px] sm:text-5xl text-left font-medium">
@@ -204,110 +319,102 @@ export default function HomePage() {
           </p>
         </div>
       </div>
+
+      {/* Articles grid (replaces hardcoded cards) */}
       <div className="py-5 sm:py-20 px-5 sm:px-20">
-        <div className="-mx-2 grid grid-cols-[repeat(auto-fit,_minmax(380px,_1fr))] gap-4">
-          <div
-            className="bg-[#FFFAF8] rounded-2xl overflow-hidden flex flex-col gap-4 p-5 h-[380px] w-full max-w-[408px]"
-            onClick={() => navigate.push("insight/insight_report")}
-          >
-            <div className="relative h-48 w-full ">
-              <Image
-                src="/assets/dumi.jpg"
-                alt="News Cover"
-                fill
-                className="object-cover rounded-2xl"
-              />
-              <span className="absolute top-3 left-3 bg-white/80 text-[#F05125] text-xs px-3 py-1 rounded-full font-medium">
-                Whitepapper
-              </span>
-            </div>
-            <div className="flex flex-col gap-4">
-              <h6 className="text-[18px] font-medium truncate">
-                Understanding AI Agents and Why They Are Gaining So Much
-                Attention
-              </h6>
-              <p className="text-[14px] sm:text-[16px] font-light line-clamp-2 leading-[130%]">
-                With Microsoft Azure technology, 1011 enables cloud
-                transformation that’s scalable and cost-aware. Built for
-                long-term performance.
-              </p>
-            </div>
-            <div className="text-[14px] sm:text-[18px] w-full flex">
-              <Link
-                href="/contact"
-                className="bg-[#F05125] hover:bg-orange-600 text-white text-center font-[500] px-6 py-2 w-full rounded-full "
-              >
-                Download Whitepapper
-              </Link>
-            </div>
-          </div>
+        {loading ? (
+          <div className="text-center py-10">Loading articles...</div>
+        ) : error ? (
+          <div className="text-center text-red-500 py-10">{error}</div>
+        ) : articles.length === 0 ? (
+          <div className="text-center py-10">No articles found.</div>
+        ) : (
+          <div className="-mx-2 grid grid-cols-[repeat(auto-fit,_minmax(380px,_1fr))] gap-4">
+            {articles.map((article) => {
+              const imgUrl = buildImgUrl(article.thumbnail);
+              const fileUrl = buildFileUrl(article.file ?? undefined);
+              const published = formatDate(article.publishedAt);
 
-          <div
-            className="bg-[#FFFAF8] rounded-2xl overflow-hidden flex flex-col gap-4 p-5 h-[380px] w-full max-w-[408px]"
-            onClick={() => navigate.push("news/details")}
-          >
-            <div className="relative h-48 w-full">
-              <Image
-                src="/assets/dumi.jpg"
-                alt="News Cover"
-                fill
-                className="object-cover rounded-2xl"
-              />
-              <span className="absolute top-3 left-3 bg-white/80 text-[#F05125] text-xs px-3 py-1 rounded-full font-medium">
-                News
-              </span>
-            </div>
-            <div className="flex flex-col gap-4">
-              <h6 className="text-[18px] font-medium truncate">
-                Understanding AI Agents and Why They Are Gaining So Much
-                Attention
-              </h6>
-              <p className="text-[14px] sm:text-[16px] font-light line-clamp-2 leading-[130%]">
-                With Microsoft Azure technology, 1011 enables cloud
-                transformation that’s scalable and cost-aware. Built for
-                long-term performance.
-              </p>
-            </div>
-            <div className="text-[14px] sm:text-[16px] font-medium flex gap-3">
-              <p>Published 30 April 2025</p>
-              <p className="font-light">|</p>
-              <p>Category News</p>
-            </div>
-          </div>
+              // normalize type and build correct detail route
+              const type = (article.type ?? "news").toLowerCase();
+              const detailHref =
+                type === "whitepapers" || type === "whitepaper"
+                  ? `/insight/insight_report/${article.documentId ?? article.id}`
+                  : `/news/details/${article.documentId ?? article.id}`;
 
-          <div
-            className="bg-[#FFFAF8] rounded-2xl overflow-hidden flex flex-col gap-4 p-5 h-[380px] w-full max-w-[408px]"
-            onClick={() => navigate.push("news/details")}
-          >
-            <div className="relative h-48 w-full">
-              <Image
-                src="/assets/dumi.jpg"
-                alt="News Cover"
-                fill
-                className="object-cover rounded-2xl"
-              />
-              <span className="absolute top-3 left-3 bg-white/80 text-[#F05125] text-xs px-3 py-1 rounded-full font-medium">
-                News
-              </span>
-            </div>
-            <div className="flex flex-col gap-4">
-              <h6 className="text-[18px] font-medium truncate">
-                Understanding AI Agents and Why They Are Gaining So Much
-                Attention
-              </h6>
-              <p className="text-[14px] sm:text-[16px] font-light line-clamp-2 leading-[130%]">
-                With Microsoft Azure technology, 1011 enables cloud
-                transformation that’s scalable and cost-aware. Built for
-                long-term performance.
-              </p>
-            </div>
-            <div className="text-[14px] sm:text-[16px] font-medium flex gap-3">
-              <p>Published 30 April 2025</p>
-              <p className="font-light">|</p>
-              <p>Category News</p>
-            </div>
+              return (
+                <div
+                  key={article.documentId ?? article.id}
+                  className="bg-[#FFFAF8] rounded-2xl overflow-hidden flex flex-col gap-4 p-5 h-[380px] w-full"
+                >
+                  <Link href={detailHref} className="relative h-48 w-full block">
+                    <div className="relative h-48 w-full">
+                      <Image
+                        src={imgUrl}
+                        alt={article.title ?? "Article cover"}
+                        fill
+                        className="object-cover rounded-2xl"
+                      />
+                      <span className="absolute top-3 left-3 bg-white/80 text-[#F05125] text-xs px-3 py-1 rounded-full font-medium">
+                        {article.type ?? "News"}
+                      </span>
+                    </div>
+                  </Link>
+
+                  <div className="flex flex-col gap-4">
+                    <Link href={detailHref} className="no-underline">
+                      <h6 className="text-[18px] font-medium truncate">
+                        {article.title}
+                      </h6>
+                    </Link>
+
+                    <p className="text-[14px] sm:text-[16px] font-light line-clamp-2 leading-[130%]">
+                      {/* try to pull short excerpt from content if exists */}
+                      {Array.isArray(article.content) && article.content.length > 0
+                        ? // find first paragraph text
+                          (() => {
+                            const p = article.content.find((c: any) => c.type === "paragraph" && Array.isArray(c.children));
+                            if (p) {
+                              const txt = p.children.map((ch: any) => ch.text ?? "").join(" ").trim();
+                              return txt || "";
+                            }
+                            return "";
+                          })()
+                        : ""}
+                    </p>
+                  </div>
+
+                  <div className="text-[14px] sm:text-[16px] font-medium flex gap-3 mt-auto items-center">
+                    <p>{published ? `Published ${published}` : ""}</p>
+                    <p className="font-light">|</p>
+                    <p>{article.type ? `${article.type}` : "News"}</p>
+
+                    {/* Spacer */}
+                    <div className="ml-auto flex items-center gap-2">
+                      {type === "whitepapers" && fileUrl ? (
+                        <a
+                          href={fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-[#F05125] hover:bg-orange-600 text-white text-center font-[500] px-4 py-2 rounded-full text-sm"
+                        >
+                          Download Whitepaper
+                        </a>
+                      ) : (
+                        <Link
+                          href={detailHref}
+                          className="bg-transparent border border-[#F05125] text-[#F05125] px-4 py-2 rounded-full text-sm"
+                        >
+                          Read More
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </div>
+        )}
       </div>
 
       {/* section 5 */}

@@ -5,9 +5,55 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Search from "../component/Search";
 import ScheduleSession from "../component/ScheduleSession";
+import { useEffect, useState } from "react";
+
+type whitePaperItem = {
+  id: number;
+  documentId : string;
+  title: string;
+  description: string;
+  publishedDate: string;
+  category: string;
+  thumbnail: string;
+};
 
 export default function Insight() {
+  const [whitepaperData, setWhitePaperData] = useState<whitePaperItem[]>([]);
   const navigate = useRouter();
+
+    useEffect(() => {
+    const baseUrl = "http://localhost:1337";
+    // const imageUrl = item.image?.data?.attributes?.formats?.thumbnail?.url
+    // ? baseURL + item.image.data.attributes.formats.thumbnail.url
+    // : baseURL + item.image.data.attributes.url;
+    fetch(`${baseUrl}/api/articles?filters[type][$eq]=whitepapers&populate[categories]=true&populate[thumbnail]=true`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.data) {
+          console.error("data.data undefined!");
+          return;
+        }
+  
+         const items = data.data.map((item: any) => ({
+          id: item.id,
+          documentId : item.documentId,
+          title: item.title,
+          description:
+            item.content?.[0]?.children?.[0]?.text || "",
+          publishedDate: new Date(
+            item.publishedAt
+          ).toLocaleDateString(),
+          category: item.category?.data?.name || "-",
+          thumbnail: item.thumbnail?.formats?.thumbnail?.url
+  ? `${baseUrl}${item.thumbnail.formats.thumbnail.url}`
+  : "/placeholder.png"
+        }));
+        setWhitePaperData(items);
+      })
+      .catch((err) => {
+        console.error("Fetch error:", err);
+      });
+  }, []);
 
   return (
     <div className="relative min-h-screen bg-white font-inter">
@@ -33,297 +79,43 @@ export default function Insight() {
       </div>
       <div className="h-full px-5 sm:px-20">
         <div className="-mx-2 grid  sm:grid-cols-[repeat(auto-fit,_minmax(372px,_1fr))] gap-4">
-          <div
-            className="bg-[#FFFAF8] rounded-2xl overflow-hidden flex flex-col gap-4 p-5 h-[380px] w-full max-w-[408px]"
-            onClick={() => navigate.push("insight/insight_report")}
-          >
-            <div className="relative h-48 w-full">
-              <Image
-                src="/assets/dumi.jpg"
-                alt="News Cover"
-                fill
-                className="object-cover rounded-2xl"
-              />
-              <span className="absolute top-3 left-3 bg-white/80 text-[#F05125] text-xs px-3 py-1 rounded-full font-medium">
-                News
-              </span>
-            </div>
-            <div className="flex flex-col gap-2">
-              <h6 className="text-[18px] font-medium truncate">
-                Understanding AI Agents and Why They Are Gaining So Much
-                Attention
-              </h6>
-              <p className="text-[16px] text-[#7D7D9D] font-light line-clamp-2 leading-[130%]">
-                With Microsoft Azure technology, 1011 enables cloud
-                transformation that’s scalable and cost-aware. Built for
-                long-term performance.
-              </p>
-            </div>
-            <div className="w-full flex mt-5">
-              <Link
-                href="/contact"
-                className="bg-[#F05125] hover:bg-orange-600 text-white text-center font-[500] px-6 py-2 w-full rounded-full "
+          {whitepaperData.map((item, index) => {
+            return (
+              <div
+                className="bg-[#FFFAF8] rounded-2xl overflow-hidden flex flex-col gap-4 p-5 h-[380px] w-full max-w-[408px]"
+                key={index}
+                onClick={() => navigate.push(`insight/insight_report/${item.documentId}`)}
               >
-                Download Whitepapper
-              </Link>
-            </div>
+                <div className="relative h-48 w-full">
+                  <Image
+                    src={item.thumbnail}
+                    alt="News Cover"
+                    fill
+                    className="object-cover rounded-2xl"
+                  />
+                  <span className="absolute top-3 left-3 bg-white/80 text-[#F05125] text-xs px-3 py-1 rounded-full font-medium">
+                    Whitepaper
+                  </span>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <h6 className="text-[18px] font-medium truncate">
+                    {item.title}
+                  </h6>
+                   <p className="text-[16px] text-[#7D7D9D] font-light line-clamp-2 leading-[130%]">
+                       {item.description}
+                  </p>
+                </div>
+                <div className="w-full flex mt-5">
+                  <Link
+                    href="/contact"
+                    className="bg-[#F05125] hover:bg-orange-600 text-white text-center font-[500] px-6 py-2 w-full rounded-full "
+                  >
+                    Download Whitepapper
+                  </Link>
+                </div>      
           </div>
-          <div className="bg-[#FFFAF8] rounded-2xl overflow-hidden flex flex-col gap-4 p-5 h-[380px] w-full max-w-[408px]">
-            <div className="relative h-48 w-full">
-              <Image
-                src="/assets/dumi.jpg"
-                alt="News Cover"
-                fill
-                className="object-cover rounded-2xl"
-              />
-              <span className="absolute top-3 left-3 bg-white/80 text-[#F05125] text-xs px-3 py-1 rounded-full font-medium">
-                News
-              </span>
-            </div>
-            <div className="flex flex-col gap-2">
-              <h6 className="text-[18px] font-medium truncate">
-                Understanding AI Agents and Why They Are Gaining So Much
-                Attention
-              </h6>
-              <p className="text-[16px] text-[#7D7D9D] font-light line-clamp-2 leading-[130%]">
-                With Microsoft Azure technology, 1011 enables cloud
-                transformation that’s scalable and cost-aware. Built for
-                long-term performance.
-              </p>
-            </div>
-            <div className="w-full flex mt-5">
-              <Link
-                href="/contact"
-                className="bg-[#F05125] hover:bg-orange-600 text-white text-center font-[500] px-6 py-2 w-full rounded-full "
-              >
-                Download Whitepapper
-              </Link>
-            </div>
-          </div>{" "}
-          <div className="bg-[#FFFAF8] rounded-2xl overflow-hidden flex flex-col gap-4 p-5 h-[380px] w-full max-w-[408px]">
-            <div className="relative h-48 w-full">
-              <Image
-                src="/assets/dumi.jpg"
-                alt="News Cover"
-                fill
-                className="object-cover rounded-2xl"
-              />
-              <span className="absolute top-3 left-3 bg-white/80 text-[#F05125] text-xs px-3 py-1 rounded-full font-medium">
-                News
-              </span>
-            </div>
-            <div className="flex flex-col gap-2">
-              <h6 className="text-[18px] font-medium truncate">
-                Understanding AI Agents and Why They Are Gaining So Much
-                Attention
-              </h6>
-              <p className="text-[16px] text-[#7D7D9D] font-light line-clamp-2 leading-[130%]">
-                With Microsoft Azure technology, 1011 enables cloud
-                transformation that’s scalable and cost-aware. Built for
-                long-term performance.
-              </p>
-            </div>
-            <div className="w-full flex mt-5">
-              <Link
-                href="/contact"
-                className="bg-[#F05125] hover:bg-orange-600 text-white text-center font-[500] px-6 py-2 w-full rounded-full "
-              >
-                Download Whitepapper
-              </Link>
-            </div>
-          </div>{" "}
-          <div className="bg-[#FFFAF8] rounded-2xl overflow-hidden flex flex-col gap-4 p-5 h-[380px] w-full max-w-[408px]">
-            <div className="relative h-48 w-full">
-              <Image
-                src="/assets/dumi.jpg"
-                alt="News Cover"
-                fill
-                className="object-cover rounded-2xl"
-              />
-              <span className="absolute top-3 left-3 bg-white/80 text-[#F05125] text-xs px-3 py-1 rounded-full font-medium">
-                News
-              </span>
-            </div>
-            <div className="flex flex-col gap-2">
-              <h6 className="text-[18px] font-medium truncate">
-                Understanding AI Agents and Why They Are Gaining So Much
-                Attention
-              </h6>
-              <p className="text-[16px] text-[#7D7D9D] font-light line-clamp-2 leading-[130%]">
-                With Microsoft Azure technology, 1011 enables cloud
-                transformation that’s scalable and cost-aware. Built for
-                long-term performance.
-              </p>
-            </div>
-            <div className="w-full flex mt-5">
-              <Link
-                href="/contact"
-                className="bg-[#F05125] hover:bg-orange-600 text-white text-center font-[500] px-6 py-2 w-full rounded-full "
-              >
-                Download Whitepapper
-              </Link>
-            </div>
-          </div>{" "}
-          <div className="bg-[#FFFAF8] rounded-2xl overflow-hidden flex flex-col gap-4 p-5 h-[380px] w-full max-w-[408px]">
-            <div className="relative h-48 w-full">
-              <Image
-                src="/assets/dumi.jpg"
-                alt="News Cover"
-                fill
-                className="object-cover rounded-2xl"
-              />
-              <span className="absolute top-3 left-3 bg-white/80 text-[#F05125] text-xs px-3 py-1 rounded-full font-medium">
-                News
-              </span>
-            </div>
-            <div className="flex flex-col gap-2">
-              <h6 className="text-[18px] font-medium truncate">
-                Understanding AI Agents and Why They Are Gaining So Much
-                Attention
-              </h6>
-              <p className="text-[16px] text-[#7D7D9D] font-light line-clamp-2 leading-[130%]">
-                With Microsoft Azure technology, 1011 enables cloud
-                transformation that’s scalable and cost-aware. Built for
-                long-term performance.
-              </p>
-            </div>
-            <div className="w-full flex mt-5">
-              <Link
-                href="/contact"
-                className="bg-[#F05125] hover:bg-orange-600 text-white text-center font-[500] px-6 py-2 w-full rounded-full "
-              >
-                Download Whitepapper
-              </Link>
-            </div>
-          </div>{" "}
-          <div className="bg-[#FFFAF8] rounded-2xl overflow-hidden flex flex-col gap-4 p-5 h-[380px] w-full max-w-[408px]">
-            <div className="relative h-48 w-full">
-              <Image
-                src="/assets/dumi.jpg"
-                alt="News Cover"
-                fill
-                className="object-cover rounded-2xl"
-              />
-              <span className="absolute top-3 left-3 bg-white/80 text-[#F05125] text-xs px-3 py-1 rounded-full font-medium">
-                News
-              </span>
-            </div>
-            <div className="flex flex-col gap-2">
-              <h6 className="text-[18px] font-medium truncate">
-                Understanding AI Agents and Why They Are Gaining So Much
-                Attention
-              </h6>
-              <p className="text-[16px] text-[#7D7D9D] font-light line-clamp-2 leading-[130%]">
-                With Microsoft Azure technology, 1011 enables cloud
-                transformation that’s scalable and cost-aware. Built for
-                long-term performance.
-              </p>
-            </div>
-            <div className="w-full flex mt-5">
-              <Link
-                href="/contact"
-                className="bg-[#F05125] hover:bg-orange-600 text-white text-center font-[500] px-6 py-2 w-full rounded-full "
-              >
-                Download Whitepapper
-              </Link>
-            </div>
-          </div>{" "}
-          <div className="bg-[#FFFAF8] rounded-2xl overflow-hidden flex flex-col gap-4 p-5 h-[380px] w-full max-w-[408px]">
-            <div className="relative h-48 w-full">
-              <Image
-                src="/assets/dumi.jpg"
-                alt="News Cover"
-                fill
-                className="object-cover rounded-2xl"
-              />
-              <span className="absolute top-3 left-3 bg-white/80 text-[#F05125] text-xs px-3 py-1 rounded-full font-medium">
-                News
-              </span>
-            </div>
-            <div className="flex flex-col gap-2">
-              <h6 className="text-[18px] font-medium truncate">
-                Understanding AI Agents and Why They Are Gaining So Much
-                Attention
-              </h6>
-              <p className="text-[16px] text-[#7D7D9D] font-light line-clamp-2 leading-[130%]">
-                With Microsoft Azure technology, 1011 enables cloud
-                transformation that’s scalable and cost-aware. Built for
-                long-term performance.
-              </p>
-            </div>
-            <div className="w-full flex mt-5">
-              <Link
-                href="/contact"
-                className="bg-[#F05125] hover:bg-orange-600 text-white text-center font-[500] px-6 py-2 w-full rounded-full "
-              >
-                Download Whitepapper
-              </Link>
-            </div>
-          </div>{" "}
-          <div className="bg-[#FFFAF8] rounded-2xl overflow-hidden flex flex-col gap-4 p-5 h-[380px] w-full max-w-[408px]">
-            <div className="relative h-48 w-full">
-              <Image
-                src="/assets/dumi.jpg"
-                alt="News Cover"
-                fill
-                className="object-cover rounded-2xl"
-              />
-              <span className="absolute top-3 left-3 bg-white/80 text-[#F05125] text-xs px-3 py-1 rounded-full font-medium">
-                News
-              </span>
-            </div>
-            <div className="flex flex-col gap-2">
-              <h6 className="text-[18px] font-medium truncate">
-                Understanding AI Agents and Why They Are Gaining So Much
-                Attention
-              </h6>
-              <p className="text-[16px] text-[#7D7D9D] font-light line-clamp-2 leading-[130%]">
-                With Microsoft Azure technology, 1011 enables cloud
-                transformation that’s scalable and cost-aware. Built for
-                long-term performance.
-              </p>
-            </div>
-            <div className="w-full flex mt-5">
-              <Link
-                href="/contact"
-                className="bg-[#F05125] hover:bg-orange-600 text-white text-center font-[500] px-6 py-2 w-full rounded-full "
-              >
-                Download Whitepapper
-              </Link>
-            </div>
-          </div>{" "}
-          <div className="bg-[#FFFAF8] rounded-2xl overflow-hidden flex flex-col gap-4 p-5 h-[380px] w-full max-w-[408px]">
-            <div className="relative h-48 w-full">
-              <Image
-                src="/assets/dumi.jpg"
-                alt="News Cover"
-                fill
-                className="object-cover rounded-2xl"
-              />
-              <span className="absolute top-3 left-3 bg-white/80 text-[#F05125] text-xs px-3 py-1 rounded-full font-medium">
-                News
-              </span>
-            </div>
-            <div className="flex flex-col gap-2">
-              <h6 className="text-[18px] font-medium truncate">
-                Understanding AI Agents and Why They Are Gaining So Much
-                Attention
-              </h6>
-              <p className="text-[16px] text-[#7D7D9D] font-light line-clamp-2 leading-[130%]">
-                With Microsoft Azure technology, 1011 enables cloud
-                transformation that’s scalable and cost-aware. Built for
-                long-term performance.
-              </p>
-            </div>
-            <div className="w-full flex mt-5">
-              <Link
-                href="/contact"
-                className="bg-[#F05125] hover:bg-orange-600 text-white text-center font-[500] px-6 py-2 w-full rounded-full "
-              >
-                Download Whitepapper
-              </Link>
-            </div>
-          </div>
+          );
+          })}
         </div>
         <div className="w-ful flex justify-center mt-10">
           <Link
