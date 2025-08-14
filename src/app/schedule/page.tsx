@@ -15,7 +15,7 @@ const FormSchema = z.object({
   fullName: z.string().min(1, "Full Name is required"),
   email: z.string().email("Invalid email"),
   mobileNumber: z.string().min(1, "Mobile number required"),
-  industry: z.string().min(1, "Full Name is required"),
+  companyName: z.string().min(1, "Full Name is required"),
   companySize: z.string(),
   purpose: z.string(),
   solution: z.string(),
@@ -42,7 +42,7 @@ export default function Schedule() {
       fullName: "",
       email: "",
       mobileNumber: "",
-      industry: "",
+      companyName: "",
       companySize: "",
       purpose: "",
       solution: "",
@@ -72,6 +72,21 @@ export default function Schedule() {
     },
     // { value: "personal", label: "Personal" },
   ];
+
+  const companySize = [
+    {
+      value : "Less than 100 employeess",
+      label : "Less than 100 employeess",
+    },
+    {
+      value : "100 - 500 employees",
+      label : "100 - 500 employees",
+    },
+     {
+      value : "More than 500 employeess",
+      label : "More than 500 employeess",
+    },
+  ]
 
   return (
     <div className="relative min-h-screen bg-white font-inter ">
@@ -123,17 +138,25 @@ export default function Schedule() {
                 {...register("mobileNumber")}
               />{" "}
               <TextInput
-                label="Industry"
-                placeholder="Input industry"
-                error={errors.industry?.message}
-                {...register("industry")}
+                label="Company Name"
+                placeholder="Input company name"
+                error={errors.companyName?.message}
+                {...register("companyName")}
               />
-              <TextInput
-                label="Company Size"
-                placeholder="Input company size"
-                error={errors.companySize?.message}
-                {...register("companySize")}
-              />
+              <Controller
+                  name="purpose"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <Select
+                      options={companySize}
+                      label="Company Size"
+                      placeholder="Choose"
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={fieldState.error?.message}
+                    />
+                  )}
+                />
             </div>
             <div>
               <div className="flex flex-col gap-5">
