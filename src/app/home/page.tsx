@@ -28,12 +28,22 @@ type FileObj = {
   mime: string;
 };
 
+type ContentChild = {
+  text?: string;
+  [k: string]: unknown;
+};
+type ContentBlock = {
+  type?: string;
+  children?: ContentChild[];
+  [k: string]: unknown;
+};
+
 type Article = {
-  id: number;
-  documentId: string;
-  title: string;
+  id: number | string;
+  documentId?: string | number;
+  title?: string;
   slug?: string;
-  content?: any;
+  content?: ContentBlock[]; // typed content
   type?: string; // "news" | "whitepapers" etc
   createdAt?: string;
   updatedAt?: string;
@@ -41,6 +51,17 @@ type Article = {
   thumbnail?: Thumbnail | null;
   file?: FileObj | null;
 };
+
+// Type guards
+function isObject(x: unknown): x is Record<string, unknown> {
+  return typeof x === "object" && x !== null;
+}
+function isStrapiEntity(x: unknown): x is { id: number | string; attributes: Record<string, unknown> } {
+  return isObject(x) && "id" in x && "attributes" in x;
+}
+function isContentBlockArray(x: unknown): x is ContentBlock[] {
+  return Array.isArray(x) && x.every((b) => isObject(b));
+}
 
 export default function HomePage() {
   const navigate = useRouter();
@@ -58,28 +79,45 @@ export default function HomePage() {
         const res = await fetch(`${base}/api/articles?populate=*`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
-        const data = Array.isArray(json.data) ? json.data : [];
-        // Map to our Article shape if Strapi returns nested attributes structure,
-        // but in your sample response attributes are top-level so handle both cases:
-        const mapped = data.map((d: any) => {
-          // If Strapi returns { id, attributes: { ... } } try to unwrap
-          const baseObj = d.attributes ? { id: d.id, ...d.attributes } : d;
+        const dataRaw = Array.isArray(json.data) ? json.data : [];
+
+        const mapped: Article[] = dataRaw.map((d: unknown) => {
+          // unwrap Strapi shape { id, attributes: {...} } or accept object directly
+          let baseObj: Record<string, unknown> = {};
+          if (isStrapiEntity(d)) {
+            baseObj = { id: d.id, ...(d.attributes ?? {}) };
+          } else if (isObject(d)) {
+            baseObj = d as Record<string, unknown>;
+          }
+
+          // helper to safely pull string fields
+          const getStr = (k: string) => {
+            const v = baseObj[k];
+            return typeof v === "string" ? v : undefined;
+          };
+
+          // thumbnail/file may be nested objects; keep as unknown then cast if match
+          const thumb = (baseObj.thumbnail ?? null) as unknown;
+          const file = (baseObj.file ?? null) as unknown;
+
           return {
-            id: d.id ?? baseObj.id,
+            id: baseObj.id ?? baseObj.documentId ?? "",
             documentId: baseObj.documentId ?? baseObj.id,
-            title: baseObj.title,
-            slug: baseObj.slug,
-            content: baseObj.content,
-            type: baseObj.type,
-            createdAt: baseObj.createdAt,
-            updatedAt: baseObj.updatedAt,
-            publishedAt: baseObj.publishedAt,
-            thumbnail: baseObj.thumbnail ?? null,
-            file: baseObj.file ?? null,
+            title: getStr("title"),
+            slug: getStr("slug"),
+            content: isContentBlockArray(baseObj.content) ? (baseObj.content as ContentBlock[]) : undefined,
+            type: getStr("type"),
+            createdAt: getStr("createdAt"),
+            updatedAt: getStr("updatedAt"),
+            publishedAt: getStr("publishedAt"),
+            thumbnail: (isObject(thumb) ? (thumb as Thumbnail) : null),
+            file: (isObject(file) ? (file as FileObj) : null),
           } as Article;
         });
+
         if (mounted) setArticles(mapped);
-      } catch (err: any) {
+      } catch (err) {
+        // keep error typed as unknown
         console.error("Failed to fetch articles", err);
         if (mounted) setError("Gagal memuat artikel");
       } finally {
@@ -94,7 +132,6 @@ export default function HomePage() {
 
   const buildImgUrl = (thumb?: Thumbnail | null) => {
     if (!thumb) return "/assets/dumi.jpg";
-    // prefer small, then thumbnail, then root url
     const candidate =
       thumb.formats?.small?.url ??
       thumb.formats?.thumbnail?.url ??
@@ -321,7 +358,8 @@ export default function HomePage() {
       </div>
 
       {/* Articles grid (replaces hardcoded cards) */}
-      <div className="py-5 sm:py-20 px-5 sm:px-20">
+
+       <div className="py-5 sm:py-20 px-5 sm:px-20">
         {loading ? (
           <div className="text-center py-10">Loading articles...</div>
         ) : error ? (
@@ -335,16 +373,26 @@ export default function HomePage() {
               const fileUrl = buildFileUrl(article.file ?? undefined);
               const published = formatDate(article.publishedAt);
 
-              // normalize type and build correct detail route
               const type = (article.type ?? "news").toLowerCase();
               const detailHref =
                 type === "whitepapers" || type === "whitepaper"
                   ? `/insight/insight_report/${article.documentId ?? article.id}`
                   : `/news/details/${article.documentId ?? article.id}`;
 
+              // excerpt extraction with safe checks (no any)
+              const excerpt = (() => {
+                const content = article.content;
+                if (!isContentBlockArray(content)) return "";
+                const para = content.find((c) => {
+                  return (typeof c.type === "string" && c.type === "paragraph" && Array.isArray(c.children));
+                });
+                if (!para || !Array.isArray(para.children)) return "";
+                return para.children.map((ch) => (typeof ch.text === "string" ? ch.text : "")).join(" ").trim();
+              })();
+
               return (
                 <div
-                  key={article.documentId ?? article.id}
+                  key={String(article.documentId ?? article.id)}
                   className="bg-[#FFFAF8] rounded-2xl overflow-hidden flex flex-col gap-4 p-5 h-[380px] w-full"
                 >
                   <Link href={detailHref} className="relative h-48 w-full block">
@@ -369,18 +417,7 @@ export default function HomePage() {
                     </Link>
 
                     <p className="text-[14px] sm:text-[16px] font-light line-clamp-2 leading-[130%]">
-                      {/* try to pull short excerpt from content if exists */}
-                      {Array.isArray(article.content) && article.content.length > 0
-                        ? // find first paragraph text
-                          (() => {
-                            const p = article.content.find((c: any) => c.type === "paragraph" && Array.isArray(c.children));
-                            if (p) {
-                              const txt = p.children.map((ch: any) => ch.text ?? "").join(" ").trim();
-                              return txt || "";
-                            }
-                            return "";
-                          })()
-                        : ""}
+                      {excerpt}
                     </p>
                   </div>
 
@@ -389,7 +426,6 @@ export default function HomePage() {
                     <p className="font-light">|</p>
                     <p>{article.type ? `${article.type}` : "News"}</p>
 
-                    {/* Spacer */}
                     <div className="ml-auto flex items-center gap-2">
                       {type === "whitepapers" && fileUrl ? (
                         <a

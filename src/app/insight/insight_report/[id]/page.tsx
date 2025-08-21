@@ -2,7 +2,6 @@
 
 import Select from "@/app/component/SelectInput";
 import TextInput from "@/app/component/TextInput";
-import { images } from "@/lib/image";
 import { MoveLeft } from "lucide-react";
 import Image from "next/image";
 import { useRouter, useParams } from "next/navigation";
@@ -10,28 +9,115 @@ import { useEffect, useState } from "react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:1337";
 
-function renderContentBlocks(blocks: any[]) {
+type ContentChild = {
+  text?: string;
+  bold?: boolean;
+  [k: string]: unknown;
+};
+
+type ContentBlock = {
+  type?: string;
+  children?: ContentChild[];
+  [k: string]: unknown;
+};
+
+type ArticleState = {
+  id?: string | number;
+  title?: string;
+  date?: string | null;
+  categoryName?: string | null;
+  thumbnailUrl?: string | null;
+  content?: ContentBlock[];
+  rawAttrs?: Record<string, unknown> | null;
+};
+
+function isObject(x: unknown): x is Record<string, unknown> {
+  return typeof x === "object" && x !== null;
+}
+
+function isStrapiEntity(x: unknown): x is { id: number | string; attributes: Record<string, unknown> } {
+  return isObject(x) && "id" in x && "attributes" in x;
+}
+
+function normalizeContent(candidate: unknown): ContentBlock[] {
+  if (Array.isArray(candidate)) return candidate as ContentBlock[];
+  if (typeof candidate === "string" && candidate.trim()) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (Array.isArray(parsed)) return parsed as ContentBlock[];
+    } catch {
+      // ignore
+    }
+  }
+  return [];
+}
+
+/** safe getter for nested properties without using `any` */
+function getIn(obj: unknown, path: Array<string | number>): unknown {
+  let cur: unknown = obj;
+  for (const key of path) {
+    if (!isObject(cur) && !Array.isArray(cur)) return undefined;
+    if (typeof key === "number") {
+      if (!Array.isArray(cur)) return undefined;
+      cur = cur[key];
+    } else {
+      cur = (cur as Record<string, unknown>)[key];
+    }
+    if (cur === undefined) return undefined;
+  }
+  return cur;
+}
+
+function getStr(obj: unknown, path: Array<string | number>): string | undefined {
+  const v = getIn(obj, path);
+  return typeof v === "string" ? v : undefined;
+}
+
+/** Normalize unknown -> id-like (string|number|undefined) */
+function getIdLike(x: unknown): string | number | undefined {
+  if (typeof x === "string" || typeof x === "number") return x;
+  return undefined;
+}
+
+/** Normalize unknown -> date-like string | undefined */
+function getDateLike(x: unknown): string | undefined {
+  if (typeof x === "string") return x;
+  return undefined;
+}
+
+function renderContentBlocks(blocks: ContentBlock[] | undefined | null) {
   if (!Array.isArray(blocks)) return null;
   return blocks.map((block, idx) => {
-    if (block.type === "paragraph") {
-      const children = (block.children || []).map((ch: any, i: number) => {
-        const text = ch?.text ?? "";
-        if (ch?.bold) return <strong key={i}>{text}</strong>;
-        return <span key={i}>{text}</span>;
-      });
+    const type = typeof block.type === "string" ? block.type : "";
+    if (type === "paragraph") {
+      const children = Array.isArray(block.children)
+        ? block.children.map((ch: ContentChild, i: number) => {
+            const text = typeof ch?.text === "string" ? ch.text : "";
+            if (ch?.bold) return <strong key={i}>{text}</strong>;
+            return <span key={i}>{text}</span>;
+          })
+        : null;
+
       return (
         <p key={idx} className="text-[#7D7D9D] leading-relaxed">
           {children}
         </p>
       );
     }
-    if (block.type === "heading") {
+
+    if (type === "heading") {
+      const text =
+        Array.isArray(block.children) && block.children.every((c) => typeof c.text === "string")
+          ? (block.children as ContentChild[]).map((c) => c.text).join("")
+          : JSON.stringify(block);
       return (
         <h3 key={idx} className="font-semibold text-lg text-[#333]">
-          {block.children?.map((c: any) => c.text ?? "").join("")}
+          {text}
         </h3>
       );
     }
+
+    // fallback
     return (
       <div key={idx} className="text-[#7D7D9D]">
         {JSON.stringify(block)}
@@ -45,8 +131,7 @@ export default function InsightReport() {
   const params = useParams();
   const id = params?.id;
 
-  const [article, setArticle] = useState<any | null>(null);
-  const [articleId, setArticleId] = useState<string | null>(null);
+  const [article, setArticle] = useState<ArticleState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -80,48 +165,62 @@ export default function InsightReport() {
         const data = json?.data;
         if (!data) throw new Error("Article not found (no data)");
 
-        const attrs = data.attributes ?? data;
-        const categoryName =
-          attrs.category?.data?.attributes?.name ??
-          (typeof attrs.category === "string" ? attrs.category : null) ??
-          (attrs.type ? attrs.type : null);
+        // unwrap strapi style { id, attributes }
+        const attrs = isStrapiEntity(data) ? (data.attributes ?? {}) : (isObject(data) ? (data as Record<string, unknown>) : {});
 
+        // category extraction (safe)
+        const categoryName =
+          getStr(attrs, ["category", "data", "attributes", "name"]) ??
+          (typeof getIn(attrs, ["category"]) === "string" ? (getIn(attrs, ["category"]) as string) : null) ??
+          (typeof getIn(attrs, ["type"]) === "string" ? (getIn(attrs, ["type"]) as string) : null);
+
+        // thumbnail extraction (safe)
         const rawThumb =
-          attrs.thumbnail?.data?.attributes?.url ??
-          attrs.thumbnail?.formats?.small?.url ??
-          attrs.thumbnail?.url ??
-          attrs.thumbnail ??
+          getIn(attrs, ["thumbnail", "data", "attributes", "url"]) ??
+          getIn(attrs, ["thumbnail", "formats", "small", "url"]) ??
+          getIn(attrs, ["thumbnail", "url"]) ??
+          getIn(attrs, ["thumbnail"]) ??
           null;
+
         const thumbnailUrl =
-          rawThumb && typeof rawThumb === "string"
+          typeof rawThumb === "string"
             ? rawThumb.startsWith("http")
               ? rawThumb
               : `${base}${rawThumb}`
             : null;
 
-        let contentCandidate: any = attrs.content ?? attrs.sections ?? attrs.body ?? null;
-        if (typeof contentCandidate === "string" && contentCandidate.trim()) {
-          try {
-            const parsed = JSON.parse(contentCandidate);
-            if (Array.isArray(parsed)) contentCandidate = parsed;
-          } catch {}
-        }
-        if (!contentCandidate && attrs.contentBlocks) contentCandidate = attrs.contentBlocks;
-        const contentNormalized = Array.isArray(contentCandidate) ? contentCandidate : [];
+        // content normalization
+        const contentCandidate: unknown =
+          getIn(attrs, ["content"]) ?? getIn(attrs, ["sections"]) ?? getIn(attrs, ["body"]) ?? null;
+
+        const contentNormalized = normalizeContent(contentCandidate).length
+          ? normalizeContent(contentCandidate)
+          : Array.isArray(getIn(attrs, ["contentBlocks"]))
+          ? (getIn(attrs, ["contentBlocks"]) as ContentBlock[])
+          : [];
 
         if (!mounted) return;
 
-        setArticle({
-          id: data.id ?? attrs.id,
-          title: attrs.title ?? attrs.name ?? "",
-          date: attrs.publishedAt ?? attrs.date ?? attrs.createdAt ?? null,
+        // --- SAFE NORMALIZATION FOR id/date ---
+        const rawIdCandidate = getIn(data, ["id"]) ?? getIn(attrs, ["id"]);
+        const safeId = getIdLike(rawIdCandidate);
+
+        const rawDateCandidate = getIn(attrs, ["publishedAt"]) ?? getIn(attrs, ["date"]) ?? getIn(attrs, ["createdAt"]);
+        const safeDate = getDateLike(rawDateCandidate);
+
+        const built: ArticleState = {
+          id: safeId,
+          title: getStr(attrs, ["title"]) ?? getStr(attrs, ["name"]) ?? "",
+          date: safeDate ?? null,
           categoryName,
           thumbnailUrl,
-          content: contentNormalized,
-          rawAttrs: attrs,
-        });
-      } catch (e: any) {
-        if (mounted) setError(e.message ?? "Unexpected error");
+          content: Array.isArray(contentNormalized) ? contentNormalized : [],
+          rawAttrs: isObject(attrs) ? (attrs as Record<string, unknown>) : null,
+        };
+
+        setArticle(built);
+      } catch (e: unknown) {
+        if (mounted) setError((e as Error)?.message ?? "Unexpected error");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -133,16 +232,9 @@ export default function InsightReport() {
     };
   }, [id]);
 
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSubmitting(true);
-
-    // if (!articleId) {
-    //   console.error("articleId belum tersedia!");
-    //   setSubmitting(false);
-    //   return;
-    // }
 
     try {
       const res = await fetch(`${API_BASE}/api/user-downloads`, {
@@ -156,8 +248,8 @@ export default function InsightReport() {
             jobTitle: formData.jobTitle,
             workEmail: formData.workEmail,
             phoneNumber: formData.phoneNumber,
-            article: id 
-          }
+            article: id,
+          },
         }),
       });
 
@@ -177,6 +269,7 @@ export default function InsightReport() {
       });
     } catch (err) {
       console.error("Submit error:", err);
+      // optionally set UI error state
     } finally {
       setSubmitting(false);
     }

@@ -7,10 +7,9 @@ import ScheduleSession from "../component/ScheduleSession";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-
 type NewsItem = {
   id: number;
-  documentId : string;
+  documentId: string;
   title: string;
   description: string;
   publishedDate: string;
@@ -18,45 +17,130 @@ type NewsItem = {
   thumbnail: string;
 };
 
+function isObject(x: unknown): x is Record<string, unknown> {
+  return typeof x === "object" && x !== null;
+}
+
+function getIn(obj: unknown, path: Array<string | number>): unknown {
+  let cur: unknown = obj;
+  for (const key of path) {
+    if (cur === undefined || cur === null) return undefined;
+    if (typeof key === "number") {
+      if (!Array.isArray(cur)) return undefined;
+      cur = cur[key];
+    } else {
+      if (!isObject(cur)) return undefined;
+      cur = (cur as Record<string, unknown>)[key];
+    }
+  }
+  return cur;
+}
+
+function getStr(obj: unknown, path: Array<string | number>): string | undefined {
+  const v = getIn(obj, path);
+  return typeof v === "string" ? v : undefined;
+}
 
 export default function News() {
   const [newsData, setNewsData] = useState<NewsItem[]>([]);
   const navigate = useRouter();
 
-  const baseUrl = "http://localhost:1337";
-
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:1337";
 
   useEffect(() => {
+    let mounted = true;
 
-  fetch(`${baseUrl}/api/articles?filters[type][$eq]=news&populate[categories]=true&populate[thumbnail]=true`)
-    .then((res) => res.json())
-    .then((data) => {
-      if (!data.data) {
-        console.error("data.data undefined!");
-        return;
-      }
+    fetch(`${baseUrl}/api/articles`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!mounted) return;
+        if (!data?.data || !Array.isArray(data.data)) {
+          console.error("data.data undefined or not an array!");
+          return;
+        }
 
-      const items = data.data.map((item: any) => ({
-          id: item.id,
-          documentId : item.documentId,
-          title: item.title,
-          description:
-            item.content?.[0]?.children?.[0]?.text || "",
-          publishedDate: new Date(
-            item.publishedAt
-          ).toLocaleDateString(),
-          category: item.category?.data?.name || "-",
-          thumbnail: item.thumbnail?.formats?.thumbnail?.url
-  ? `${baseUrl}${item.thumbnail.formats.thumbnail.url}`
-  : "/placeholder.png"
-        }));
+      
+        const items: NewsItem[] = (Array.isArray(data.data) ? data.data : []).map((raw: unknown) => {
+  // raw may be Strapi entity { id, attributes } or plain object
+  let attrs: Record<string, unknown> = {};
+  let id = 0;
 
-      setNewsData(items);
-    })
-    .catch((err) => {
-      console.error("Fetch error:", err);
-    });
-}, []);
+  if (isObject(raw) && "id" in raw) {
+    const rawRec = raw as Record<string, unknown>;
+    id = Number(rawRec.id) || 0;
+    const maybeAttrs = rawRec.attributes;
+    if (isObject(maybeAttrs)) attrs = maybeAttrs as Record<string, unknown>;
+    else attrs = rawRec;
+  } else if (isObject(raw)) {
+    attrs = raw as Record<string, unknown>;
+    id = Number(attrs.id as unknown as number) || 0;
+  }
+
+  const title =
+    (typeof attrs.title === "string" && attrs.title) ??
+    (typeof attrs.name === "string" ? attrs.name : "");
+
+  const documentId =
+    (typeof attrs.documentId === "string" && attrs.documentId) ??
+    (typeof attrs.slug === "string" && attrs.slug) ??
+    String(id);
+
+  // description: try content/sections/contentBlocks safely
+  const descFromContent = getIn(attrs, ["content", 0, "children", 0, "text"]);
+  const descFromSections = getIn(attrs, ["sections", 0, "children", 0, "text"]);
+  const descFromContentBlocks = getIn(attrs, ["contentBlocks", 0, "children", 0, "text"]);
+  const description =
+    typeof descFromContent === "string"
+      ? descFromContent
+      : typeof descFromSections === "string"
+      ? descFromSections
+      : typeof descFromContentBlocks === "string"
+      ? descFromContentBlocks
+      : "";
+
+  // published date
+  const publishedDateRaw =
+    getStr(attrs, ["publishedAt"]) ?? getStr(attrs, ["date"]) ?? getStr(attrs, ["createdAt"]) ?? null;
+  const publishedDate = publishedDateRaw ? new Date(publishedDateRaw).toLocaleDateString() : "";
+
+  // category
+  const category =
+    getStr(attrs, ["category", "data", "attributes", "name"]) ??
+    (typeof attrs.category === "string" ? attrs.category : "-");
+
+  // thumbnail: several nested possibilities
+  const thumbDataUrl = getStr(attrs, ["thumbnail", "data", "attributes", "url"]);
+  const thumbFormatsSmall =
+    getStr(attrs, ["thumbnail", "formats", "thumbnail", "url"]) ?? getStr(attrs, ["thumbnail", "formats", "small", "url"]);
+  const thumbUrlDirect = getStr(attrs, ["thumbnail", "url"]);
+  const rawThumb = thumbDataUrl ?? thumbFormatsSmall ?? thumbUrlDirect ?? null;
+  const thumbnail = typeof rawThumb === "string" ? (rawThumb.startsWith("http") ? rawThumb : `${baseUrl}${rawThumb}`) : "/placeholder.png";
+
+  return {
+    id,
+    documentId,
+    title,
+    description,
+    publishedDate,
+    category: category ?? "-",
+    thumbnail,
+  } as NewsItem;
+})
+// optional: remove items lacking a useful documentId
+.filter((it: NewsItem) => Boolean(it.documentId));
+
+
+        setNewsData(items);
+      })
+      .catch((err) => {
+        if (!mounted) return;
+        console.error("Fetch error:", err);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [baseUrl]);
 
   return (
     <div className="relative min-h-screen bg-white font-inter">
@@ -82,28 +166,19 @@ export default function News() {
       </div>
       <div className="h-full px-5 sm:px-20">
         <div className="-mx-2 grid  sm:grid-cols-[repeat(auto-fit,_minmax(372px,_1fr))] gap-4">
-          {newsData.map((item, index) => {
+          {newsData.map((item) => {
             return (
               <div
                 className="bg-[#FFFAF8] rounded-2xl overflow-hidden flex flex-col gap-4 p-5 h-[380px] w-full max-w-[408px]"
-                key={index}
+                key={item.documentId || item.id}
                 onClick={() => navigate.push(`/news/details/${item.documentId}`)}
               >
                 <div className="relative h-48 w-full">
-                  <Image
-                    src={item.thumbnail}
-                    alt="News Cover"
-                    fill
-                    className="object-cover rounded-2xl"
-                  />
+                  <Image src={item.thumbnail} alt="News Cover" fill className="object-cover rounded-2xl" />
                 </div>
                 <div className="flex flex-col gap-2">
-                  <h6 className="text-[18px] font-medium truncate">
-                    {item.title}
-                  </h6>
-                  <p className="text-[16px] text-[#7D7D9D] font-light line-clamp-2 leading-[130%]">
-                    {item.description}
-                  </p>
+                  <h6 className="text-[18px] font-medium truncate">{item.title}</h6>
+                  <p className="text-[16px] text-[#7D7D9D] font-light line-clamp-2 leading-[130%]">{item.description}</p>
                 </div>
                 <div className="w-full flex mt-5">
                   <div className="text-[15px] font-medium flex gap-3">

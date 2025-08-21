@@ -2,13 +2,32 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   images: {
-    domains: [
-      "example.com",
-      "source.unsplash.com",
-      "images.unsplash.com",
-      "png.pngtree.com",
-      "encrypted-tbn0.gstatic.com",
-      "localhost",
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "example.com",
+      },
+      {
+        protocol: "https",
+        hostname: "source.unsplash.com",
+      },
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
+      },
+      {
+        protocol: "https",
+        hostname: "png.pngtree.com",
+      },
+      {
+        protocol: "https",
+        hostname: "encrypted-tbn0.gstatic.com",
+      },
+      {
+        protocol: "http",
+        hostname: "localhost",
+        port: "1337", // untuk Strapi local
+      },
     ],
   },
   /* config options here */
