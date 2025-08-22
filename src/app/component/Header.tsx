@@ -67,18 +67,27 @@ export default function Header() {
   return (
     <header
       ref={rootRef}
-      className="fixed top-3 sm:top-8 inset-x-0 z-50 max-w-7xl mx-3 sm:mx-auto bg-neutral-900 text-white pl-4 pr-2 sm:pl-6 sm:pr-3 py-2 sm:py-3 flex items-center justify-between rounded-full "
+      className="fixed top-3 sm:top-8 inset-x-0 z-50 max-w-5xl mx-auto 
+             bg-neutral-900 text-white pl-6 pr-3 py-2 sm:py-3 
+             flex items-center justify-between rounded-full "
     >
       {/* Logo */}
       <Link href="/" className="flex items-center gap-2" onClick={closeAll}>
-        <div className="w-[40px] h-[20px] sm:w-[60px] sm:h-[30px] relative">
-          <Image src={images.IMG_LOGO} alt="logo" fill className="object-contain" />
+        <div className="h-4 sm:h-6 relative">
+          <Image
+              src={images.IMG_LOGO}
+              alt="logo"
+              width={160}      // besar
+              height={80}
+              className="object-contain w-auto h-full"
+              priority
+          />
         </div>
 
-        <div className="text- sm:text-2xl font-medium">
+        {/* <div className="text- sm:text-2xl font-medium">
           <span className="text-white">ten</span>
           <span className="text-neutral-400">eleven</span>
-        </div>
+        </div> */}
       </Link>
 
       {/* Desktop Nav */}

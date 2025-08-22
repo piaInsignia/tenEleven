@@ -40,7 +40,7 @@ export const images = {
   IMG_BG_INSIGHT_MOBILE: "/assets/bg_mobile_insight.png",
   //socialmedia
   IMG_SM_FACEBOOK: "/assets/socialMedia/social_media_facebook.svg",
-  IMG_SM_X: "/assets/socialMedia/social_media_X.svg",
+  IMG_SM_X: "/assets/socialMedia/social_media_x.svg",
   IMG_SM_WHATSAPP: "/assets/socialMedia/social_media_whatsapp.svg",
   IMG_SM_TELEGRAM: "/assets/socialMedia/social_media_telegram.svg",
   //studycase

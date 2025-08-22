@@ -99,7 +99,7 @@ export default function OurServiceData() {
           </div>
         </div>
       </div>
-      <div className="px-4  md:px-10 lg:px-25 pt-10 lg:pt-20">
+      {/* <div className="px-4  md:px-10 lg:px-25 pt-10 lg:pt-20">
         <div className="bg-[#F6F7FB] rounded-2xl p-5 sm:p-10 flex flex-col lg:flex-row lg:gap-10">
           <div className="relative w-[70px] sm:w-[115px] h-[60px] sm:h-[100px]">
             <Image
@@ -110,7 +110,7 @@ export default function OurServiceData() {
             />
           </div>
         </div>
-      </div>
+      </div> */}
       <ScheduleSession />
     </section>
   );
