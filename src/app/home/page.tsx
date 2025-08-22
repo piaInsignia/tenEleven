@@ -75,7 +75,7 @@ export default function HomePage() {
       setLoading(true);
       setError(null);
       try {
-        const base = process.env.NEXT_PUBLIC_API_URL ?? "";
+        const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:1337";
         const res = await fetch(`${base}/api/articles?populate=*`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();

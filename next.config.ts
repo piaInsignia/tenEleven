@@ -25,7 +25,7 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "http",
-        hostname: "localhost",
+        hostname: "45.94.209.209",
         port: "1337", // untuk Strapi local
       },
     ],
